@@ -3,20 +3,20 @@
   var getUrlWithParamValue, duringPopState, getParamValue, newValue, popHandler;
   var pophandlers = [];
   var scheduled = false;
-  
+
   var startLocalSync = function(storageName) {
     return function(vm, path) {
-      
+
       var currentlyUpdating = false;
       window.addEventListener('storage', function(event) {
         if (event.key == storageName + path && !currentlyUpdating) vue.set(vm, event.key.replace(storageName, ''), JSON.parse(event.newValue));
         currentlyUpdating = true
         vm.$nextTick(function() { currentlyUpdating = false; })
       })
-      
+
       var existingValue = localStorage.getItem(storageName+path);
       if (existingValue) vue.set(vm, path, JSON.parse(existingValue));
-      
+
       vm.$watch(path, function(newVal, oldVal) {
         if (currentlyUpdating) return;
         currentlyUpdating = true;
@@ -27,16 +27,16 @@
         deep: true,
         immidiate: true
       });
-      
+
       return function() {
         // Stop syncing, deconstruct, etc.
       }
     }
   }
 
-  
-  
-  
+
+
+
   getUrlWithParamValue = function(paramName, paramValue) {
     var pattern, url;
     if (paramValue && typeof(paramValue) == 'object') {
@@ -77,7 +77,7 @@
     if (typeof param == 'object') {
       noHistory = param.noHistory,
       param = param.param
-    } 
+    }
     return function(vm, path) {
       initialUrlValue = getParamValue(param);
       if (initialUrlValue) {
@@ -85,7 +85,12 @@
       }
       else {
         var newUrl = getUrlWithParamValue(param, vm[path]);
-        history.replaceState(null, '', newUrl);
+        if (vm.$router !== undefined) {
+          url = new URL(newUrl);
+          vm.$router.replace(url.pathname + url.search);
+        } else {
+          history.replaceState(null, '', newUrl);
+        }
       }
 
       vm.$watch(path, function(val1, val2) {
@@ -95,19 +100,29 @@
           return;
         }
         newUrl = getUrlWithParamValue(param, val1);
-        
+
         if (noHistory) {
-          history.replaceState(null, '', newUrl);
+          if (vm.$router !== undefined) {
+            url = new URL(newUrl);
+            vm.$router.replace(url.pathname + url.search);
+          } else {
+            history.replaceState(null, '', newUrl);
+          }
         }
         else {
-          history.pushState(null, '', newUrl);  
+          if (vm.$router !== undefined) {
+            url = new URL(newUrl);
+            vm.$router.push(url.pathname + url.search);
+          } else {
+            history.pushState(null, '', newUrl);
+          }
         }
-        
-        pophandlers.map(function(handler) { 
-          handler() 
+
+        pophandlers.map(function(handler) {
+          handler()
         })
       }, {deep: true, sync: true});
-      
+
       var handler = function() {
         // if (duringPopState) return;
         duringPopState = true;
@@ -117,15 +132,15 @@
           duringPopState = false;
         });
       };
-      pophandlers.push(handler)  
-      
-      
+      pophandlers.push(handler)
+
+
       return function() {
-      
+
       }
     }
   }
-  
+
 
 
   var sync = {
@@ -140,7 +155,7 @@
       }
       var vm = this;
       vm._stopSyncFuncs = []
-      
+
       // handle `url` options
       var urlOptions = this.$options.url;
       if (typeof urlOptions == 'function') urlOptions = urlOptions();
@@ -167,7 +182,7 @@
             if (urlOptions.hasOwnProperty(key)) {
               var syncFn = getUrlSyncFn(urlOptions[key])
               vm._stopSyncFuncs.push(syncFn(vm, key));
-            } 
+            }
           })
         }
         else {
